@@ -320,7 +320,7 @@ splatSimGeneMeans <- function(sim, params, copyNumStates, alpha) {
     # Incorporate with gene-specific alpha parameters if simulating with CNVs 
     if (is.null(alpha) == FALSE) {
         alphas <- rnorm(nGenes, mean=1, sd=0.1)
-        base.means.gene <- base.mean.gene*(copyNumStates/2)^alphas
+        base.means.gene <- base.means.gene*(copyNumStates/2)^alphas
     }
     
     # Add expression outliers
