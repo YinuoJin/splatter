@@ -1,3 +1,5 @@
+suppressMessages(library(msgr))
+
 #' Splat simulation
 #'
 #' Simulate count data from a fictional single-cell RNA-seq experiment using
@@ -9,6 +11,8 @@
 #'        produces a single population, "groups" which produces distinct groups
 #'        (eg. cell types) or "paths" which selects cells from continuous
 #'        trajectories (eg. differentiation processes).
+#' @param copyNumStates vector of simulated ground truth copy number states (for CNV-simulations).
+#' @param alpha double value of alpha parameter (gene-specific expression responses) (for CNV-simulations).
 #' @param verbose logical. Whether to print progress messages.
 #' @param ... any additional parameter settings to override what is provided in
 #'        \code{params}.
@@ -128,10 +132,16 @@
 #' @export
 splatSimulate <- function(params = newSplatParams(),
                           method = c("single", "groups", "paths"),
+                          copyNumStates = NULL, 
+                          alpha = NULL,
                           verbose = TRUE, ...) {
-
     checkmate::assertClass(params, "SplatParams")
-
+    
+    # check parameters of CNV-simulations
+    assert((is.null(copyNumStates) && is.null(alpha)) || 
+           (typeof(copyNumStates) == "double" && typeof(alpha) == "double"),
+           "Invalid parameter types for CNV-simulations")
+    
     method <- match.arg(method)
 
     if (verbose) {message("Getting parameters...")}
@@ -191,7 +201,7 @@ splatSimulate <- function(params = newSplatParams(),
     if (verbose) {message("Simulating library sizes...")}
     sim <- splatSimLibSizes(sim, params)
     if (verbose) {message("Simulating gene means...")}
-    sim <- splatSimGeneMeans(sim, params)
+    sim <- splatSimGeneMeans(sim, params, copyNumStates, alpha)
     if (nBatches > 1) {
         if (verbose) {message("Simulating batch effects...")}
         sim <- splatSimBatchEffects(sim, params)
@@ -288,12 +298,14 @@ splatSimLibSizes <- function(sim, params) {
 #'
 #' @param sim SingleCellExperiment to add gene means to.
 #' @param params SplatParams object with simulation parameters.
+#' @param copyNumStates vector of simulated ground truth copy number states (for CNVs simulations)
+#' @param alpha double value of alpha parameter (gene-specific expression responses) (for CNV-simulations).
 #'
 #' @return SingleCellExperiment with simulated gene means.
 #'
 #' @importFrom SummarizedExperiment rowData rowData<-
 #' @importFrom stats rgamma median
-splatSimGeneMeans <- function(sim, params) {
+splatSimGeneMeans <- function(sim, params, copyNumStates, alpha) {
 
     nGenes <- getParam(params, "nGenes")
     mean.shape <- getParam(params, "mean.shape")
@@ -302,9 +314,15 @@ splatSimGeneMeans <- function(sim, params) {
     out.facLoc <- getParam(params, "out.facLoc")
     out.facScale <- getParam(params, "out.facScale")
 
-    # Simulate base gene means
-    base.means.gene <- rgamma(nGenes, shape = mean.shape, rate = mean.rate)
-
+    # Simulate base gene means 
+    base.means.gene <- rgamma(nGenes, shape = mean.shape, rate = mean.rate) 
+    
+    # Incorporate with gene-specific alpha parameters if simulating with CNVs 
+    if (is.null(alpha) == FALSE) {
+        alphas <- rnorm(nGenes, mean=1, sd=0.1)
+        base.means.gene <- base.mean.gene*(copyNumStates/2)^alphas
+    }
+    
     # Add expression outliers
     outlier.facs <- getLNormFactors(nGenes, out.prob, 0, out.facLoc,
                                     out.facScale)
