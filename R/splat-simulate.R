@@ -319,7 +319,8 @@ splatSimGeneMeans <- function(sim, params, copyNumStates, alpha) {
     
     # Incorporate with gene-specific alpha parameters if simulating with CNVs 
     if (is.null(alpha) == FALSE) {
-        alphas <- rnorm(nGenes, mean=1, sd=0.1)
+        message(" \-- Simulating gene means with CNVs...")}
+        alphas <- rnorm(nGenes, mean=alpha, sd=0.1)
         base.means.gene <- base.means.gene*(copyNumStates/2)^alphas
     }
     
@@ -668,6 +669,11 @@ splatSimBCVMeans <- function(sim, params) {
         as.numeric(nGenes) * as.numeric(nCells),
         shape = 1 / (bcv ^ 2), scale = base.means.cell * (bcv ^ 2)),
     nrow = nGenes, ncol = nCells)
+    
+    # convert NAs to 0 if produced
+    if (any(is.na(means.cell))) {
+        means.cell[is.na(means.cell)] = 0
+    }
 
     colnames(means.cell) <- cell.names
     rownames(means.cell) <- gene.names
