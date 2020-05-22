@@ -300,7 +300,7 @@ splatSimLibSizes <- function(sim, params) {
 #'
 #' @param sim SingleCellExperiment to add gene means to.
 #' @param params SplatParams object with simulation parameters.
-#' @param baseGeneMeeans vector of previously simulated base gene means (for CNV simulations)
+#' @param baseGeneMeans vector of previously simulated base gene means (for CNV simulations)
 #' @param copyNumStates vector of simulated ground truth copy number states (for CNVs simulations)
 #' @param alpha double value of alpha parameter (gene-specific expression responses) (for CNV-simulations).
 #'
