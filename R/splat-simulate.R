@@ -133,7 +133,7 @@ suppressMessages(library(msgr))
 #' @export
 splatSimulate <- function(params = newSplatParams(),
                           method = c("single", "groups", "paths"),
-                          baseGeneMeans = NULL
+                          baseGeneMeans = NULL,
                           copyNumStates = NULL, 
                           alpha = NULL,
                           verbose = TRUE, ...) {
