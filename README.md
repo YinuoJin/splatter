@@ -1,4 +1,4 @@
-# Splatter
+# Splatter (with CNV modifications)
 
 [![Project Status](http://www.repostatus.org/badges/latest/active.svg)](http://www.repostatus.org/#active)
 [![Lifecycle](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable)
@@ -11,6 +11,21 @@
 [![Bioc Build](https://bioconductor.org/shields/build/devel/bioc/splatter.svg)](https://bioconductor.org/packages/devel/bioc/html/splatter.html)
 
 ![Splatter logo](vignettes/splatter-logo-small.png)
+
+## Major modifications
+Added CNVs - (k/2)^alpha in function "splatSimGeneMeans", splat-simulate.R
+
+## Installation (with CNV simulations)
+Dependencies: R >= 4.0.0 (version)
+```{r}
+# installing from Github 
+require(devtools)
+devtools::install_github("YinuoJin/splatter")
+
+# installing from local source files
+splatter_path = "Your_splatter_parent_directory"  # to be filled in
+install.packages(splatter_path, repos=NULL, type="source")
+```
 
 Splatter is an R package for the simple simulation of single-cell RNA sequencing
 data. Splatter provides a common interface to multiple simulations that have:
