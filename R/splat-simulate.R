@@ -11,7 +11,7 @@ suppressMessages(library(msgr))
 #'        produces a single population, "groups" which produces distinct groups
 #'        (eg. cell types) or "paths" which selects cells from continuous
 #'        trajectories (eg. differentiation processes).
-#' @param baseGeneMeans vector of previously saved base gene means (for CNV-simulations)
+#' @param baseGeneMeans vector of previously simulated base gene means (for CNV-simulations)
 #' @param copyNumStates vector of simulated ground truth copy number states (for CNV-simulations).
 #' @param alpha double value of alpha parameter (gene-specific expression responses) (for CNV-simulations).
 #' @param verbose logical. Whether to print progress messages.
@@ -139,7 +139,7 @@ splatSimulate <- function(params = newSplatParams(),
                           verbose = TRUE, ...) {
     checkmate::assertClass(params, "SplatParams")
     
-    # check parameters of CNV-simulations
+    # check datatype continuity between parameters of CNV-simulations
     assert((is.null(copyNumStates) && is.null(alpha)) || 
            (typeof(copyNumStates) == "double" && typeof(alpha) == "double"),
            "Invalid parameter types for CNV-simulations")
@@ -322,25 +322,34 @@ splatSimGeneMeans <- function(sim, params, baseGeneMeans, copyNumStates, alpha) 
         base.means.gene <- rgamma(nGenes, shape = mean.shape, rate = mean.rate) 
     }
     else {
-        base.means.gene <- baseGeneMeans  # use the previous base gene means
-    }
-    
-    # Incorporate with gene-specific alpha parameters if simulating with CNVs 
-    if (is.null(alpha) == FALSE) {
         message(" -- Simulating gene means with CNVs...")
+        
+        # Use the previous base gene means as the diploid values
+        diploid.base.means.gene <- baseGeneMeans  
+        
+        # Incorporate with gene-specific alpha parameters if simulating with CNVs 
         alphas <- rnorm(nGenes, mean=alpha, sd=0.1)
-        base.means.gene <- base.means.gene*(copyNumStates/2)^alphas
+        base.means.gene <- diploid.base.means.gene*(copyNumStates/2)^alphas
     }
     
     # Add expression outliers
     outlier.facs <- getLNormFactors(nGenes, out.prob, 0, out.facLoc,
                                     out.facScale)
+    
     median.means.gene <- median(base.means.gene)
     outlier.means <- median.means.gene * outlier.facs
     is.outlier <- outlier.facs != 1
     means.gene <- base.means.gene
     means.gene[is.outlier] <- outlier.means[is.outlier]
-
+    
+    if (!is.null(baseGeneMeans)) {
+        diploid.median.means.gene <- median(diploid.base.means.gene)
+        diploid.outlier.means <- diploid.median.means.gene * outlier.facs
+        diploid.means.gene <- diploid.base.means.gene
+        diploid.means.gene[is.outlier] <- diploid.outlier.means[is.outlier]
+        rowData(sim)$DiploidGeneMean <- diploid.means.gene
+    }
+    
     rowData(sim)$BaseGeneMean <- base.means.gene
     rowData(sim)$OutlierFactor <- outlier.facs
     rowData(sim)$GeneMean <- means.gene
@@ -415,6 +424,15 @@ splatSimBatchCellMeans <- function(sim, params) {
     colnames(batch.means.cell) <- cell.names
     rownames(batch.means.cell) <- gene.names
     assays(sim)$BatchCellMeans <- batch.means.cell
+    
+    # Initialize DiploidBatchCellMeans for CNV-simulations
+    # Avoid future gene means normalization in Simulate cell means, which cancels the CNV differential expressions
+    if (!is.null(rowData(sim)$DiploidGeneMean)) {
+        diploid.gene.means <- rowData(sim)$DiploidGeneMean
+        diploid.batch.means.cell <- batch.facs.cell * diploid.gene.means
+        
+        assays(sim, withDimnames=FALSE)$DiploidBatchCellMeans <- diploid.batch.means.cell
+    }
 
     return(sim)
 }
@@ -494,7 +512,7 @@ splatSimPathDE <- function(sim, params) {
 #'
 #' @param sim SingleCellExperiment to add cell means to.
 #' @param params SplatParams object with simulation parameters.
-#'
+#' 
 #' @return SingleCellExperiment with added cell means.
 #'
 #' @name splatSimCellMeans
@@ -508,12 +526,20 @@ splatSimSingleCellMeans <- function(sim, params) {
     cell.names <- colData(sim)$Cell
     gene.names <- rowData(sim)$Gene
     exp.lib.sizes <- colData(sim)$ExpLibSize
-    batch.means.cell <- assays(sim)$BatchCellMeans
-
-    cell.means.gene <- batch.means.cell
-    cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+    
+    if (is.null(assays(sim)$DiploidBatchCellMeans)) {
+        cell.means.gene <- assays(sim)$BatchCellMeans
+        cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+    } else {
+        # For CNV-simulations, avoid future gene means normalization in Simulate cell means, 
+        # which cancels the CNV differential expressions
+        cell.means.gene <- assays(sim)$BatchCellMeans
+        diploid.cell.means.gene <- assays(sim)$DiploidBatchCellMeans
+        cell.props.gene <- t(t(cell.means.gene) / colSums(diploid.cell.means.gene))
+    }
+    
     base.means.cell <- t(t(cell.props.gene) * exp.lib.sizes)
-
+    
     colnames(base.means.cell) <- cell.names
     rownames(base.means.cell) <- gene.names
     assays(sim)$BaseCellMeans <- base.means.cell
@@ -531,12 +557,24 @@ splatSimGroupCellMeans <- function(sim, params) {
     groups <- colData(sim)$Group
     group.names <- levels(groups)
     exp.lib.sizes <- colData(sim)$ExpLibSize
-    batch.means.cell <- assays(sim)$BatchCellMeans
-
+    
     group.facs.gene <- rowData(sim)[, paste0("DEFac", group.names)]
     cell.facs.gene <- as.matrix(group.facs.gene[, paste0("DEFac", groups)])
-    cell.means.gene <- batch.means.cell * cell.facs.gene
-    cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+    
+    if (is.null(assays(sim)$DiploidBatchCellMeans)) {
+        batch.means.cell <- assays(sim)$BatchCellMeans
+        cell.means.gene <- batch.means.cell * cell.facs.gene
+        cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+    } else {
+        # For CNV-simulations, avoid future gene means normalization in Simulate cell means, 
+        # which cancels the CNV differential expressions
+        batch.means.cell <- assays(sim)$BatchCellMeans
+        diploid.batch.means.cell <- assays(sim)$DiploidBatchCellMeans
+        cell.means.gene <- batch.means.cell * cell.facs.gene
+        diploid.cell.means.gene <- diploid.batch.means.cell * cell.facs.gene
+        cell.props.gene <- t(t(cell.means.gene) / colSums(diploid.cell.means.gene))
+    }
+
     base.means.cell <- t(t(cell.props.gene) * exp.lib.sizes)
 
     colnames(base.means.cell) <- cell.names
@@ -563,6 +601,7 @@ splatSimPathCellMeans <- function(sim, params) {
     path.sigmaFac <- getParam(params, "path.sigmaFac")
     groups <- colData(sim)$Group
     exp.lib.sizes <- colData(sim)$ExpLibSize
+    
     batch.means.cell <- assays(sim)$BatchCellMeans
 
     group.sizes <- table(groups)

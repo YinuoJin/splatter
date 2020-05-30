@@ -23,7 +23,7 @@ require(devtools)
 devtools::install_github("YinuoJin/splatter")
 
 # installing from local source files
-splatter_path = "Your_splatter_parent_directory"  # to be filled in
+splatter_path <- "Your_splatter_parent_directory/splatter"  # to be filled in
 install.packages(splatter_path, repos=NULL, type="source")
 ```
 
