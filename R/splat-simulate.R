@@ -15,6 +15,8 @@ suppressMessages(library(msgr))
 #' @param copyNumStates vector of simulated ground truth copy number states (for CNV-simulations).
 #' @param outlierFacs vector of outlier factors from previous simulations (for CNV simulations).
 #' @param alpha double value of alpha parameter (gene-specific expression responses) (for CNV-simulations).
+#' @param groupAssignments vector of previously simulated group assignments for cell-type simulations (for CNV simulations).
+#' @param groupDEFacs list of previously simulated DEGene multiplicative factors for cell-type simulations (for CNV simulations).
 #' @param sortGroups logical. Whether to sort group assignments.
 #' @param verbose logical. Whether to print progress messages.
 #' @param ... any additional parameter settings to override what is provided in
@@ -139,6 +141,8 @@ splatSimulate <- function(params = newSplatParams(),
                           copyNumStates = NULL, 
                           outlierFacs = NULL,
                           alpha = NULL,
+                          groupAssignments = NULL,
+                          groupDEFacs = NULL,
                           sortGroups = TRUE,
                           verbose = TRUE, ...) {
     checkmate::assertClass(params, "SplatParams")
@@ -199,12 +203,18 @@ splatSimulate <- function(params = newSplatParams(),
     colData(sim)$Batch <- batch.names[batches]
 
     if (method != "single") {
-        groups <- sample(seq_len(nGroups), nCells, prob = group.prob,
-                         replace = TRUE)
-        if (sortGroups) {
-          groups <- sort(groups)
+        if (is.null(groupAssignments)) {
+            groups <- sample(seq_len(nGroups), nCells, prob = group.prob,
+                             replace = TRUE)
+            if (sortGroups) {
+                groups <- sort(groups)
+            }
+            colData(sim)$Group <- factor(group.names[groups], levels = group.names)
         }
-        colData(sim)$Group <- factor(group.names[groups], levels = group.names)
+        else {
+            # label groups based on passed-in assignments
+            colData(sim)$Group <- groupAssignments
+        }
     }
 
     if (verbose) {message("Simulating library sizes...")}
@@ -458,6 +468,7 @@ splatSimBatchCellMeans <- function(sim, params) {
 #'
 #' @param sim SingleCellExperiment to add differential expression to.
 #' @param params splatParams object with simulation parameters.
+#' @param groupDEFacs list of previously simulated DEGene multiplicative factors for cell-type simulations (for CNV simulations).
 #'
 #' @return SingleCellExperiment with simulated differential expression.
 #'
@@ -466,7 +477,7 @@ NULL
 
 #' @rdname splatSimDE
 #' @importFrom SummarizedExperiment rowData
-splatSimGroupDE <- function(sim, params) {
+splatSimGroupDE <- function(sim, params, groupDEFacs) {
 
     nGenes <- getParam(params, "nGenes")
     nGroups <- getParam(params, "nGroups")
@@ -477,8 +488,15 @@ splatSimGroupDE <- function(sim, params) {
     means.gene <- rowData(sim)$GeneMean
 
     for (idx in seq_len(nGroups)) {
-        de.facs <- getLNormFactors(nGenes, de.prob[idx], de.downProb[idx],
-                                   de.facLoc[idx], de.facScale[idx])
+        if (is.null(groupDEFacs)) {
+            de.facs <- getLNormFactors(nGenes, de.prob[idx], de.downProb[idx],
+                                      de.facLoc[idx], de.facScale[idx])
+        }
+        else {
+            # assign previously assigned DE factor
+            de.facs <- groupDEFacs[[idx]]
+        }
+      
         group.means.gene <- means.gene * de.facs
         rowData(sim)[[paste0("DEFacGroup", idx)]] <- de.facs
     }
