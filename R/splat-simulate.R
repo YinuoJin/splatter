@@ -15,6 +15,7 @@ suppressMessages(library(msgr))
 #' @param copyNumStates vector of simulated ground truth copy number states (for CNV-simulations).
 #' @param outlierFacs vector of outlier factors from previous simulations (for CNV simulations).
 #' @param alpha double value of alpha parameter (gene-specific expression responses) (for CNV-simulations).
+#' @param sortGroups logical. Whether to sort group assignments.
 #' @param verbose logical. Whether to print progress messages.
 #' @param ... any additional parameter settings to override what is provided in
 #'        \code{params}.
@@ -138,6 +139,7 @@ splatSimulate <- function(params = newSplatParams(),
                           copyNumStates = NULL, 
                           outlierFacs = NULL,
                           alpha = NULL,
+                          sortGroups = TRUE,
                           verbose = TRUE, ...) {
     checkmate::assertClass(params, "SplatParams")
     
@@ -199,6 +201,9 @@ splatSimulate <- function(params = newSplatParams(),
     if (method != "single") {
         groups <- sample(seq_len(nGroups), nCells, prob = group.prob,
                          replace = TRUE)
+        if (sortGroups) {
+          groups <- sort(groups)
+        }
         colData(sim)$Group <- factor(group.names[groups], levels = group.names)
     }
 
