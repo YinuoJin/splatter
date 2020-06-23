@@ -220,6 +220,7 @@ splatSimulate <- function(params = newSplatParams(),
     if (verbose) {message("Simulating library sizes...")}
     sim <- splatSimLibSizes(sim, params)
     if (verbose) {message("Simulating gene means...")}
+    if (verbose && !is.null(copyNumStates)) {message(" -- Simulating gene means with CNVs...")}
     sim <- splatSimGeneMeans(sim, params, baseGeneMeans, copyNumStates, outlierFacs, alpha)
     if (nBatches > 1) {
         if (verbose) {message("Simulating batch effects...")}
@@ -340,8 +341,6 @@ splatSimGeneMeans <- function(sim, params, baseGeneMeans, copyNumStates, outlier
         base.means.gene <- rgamma(nGenes, shape = mean.shape, rate = mean.rate) 
     }
     else {
-        if (verbose) {message(" -- Simulating gene means with CNVs...")}
-        
         # Use the previous base gene means as the diploid values
         diploid.base.means.gene <- baseGeneMeans  
         
