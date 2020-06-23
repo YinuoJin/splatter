@@ -340,7 +340,7 @@ splatSimGeneMeans <- function(sim, params, baseGeneMeans, copyNumStates, outlier
         base.means.gene <- rgamma(nGenes, shape = mean.shape, rate = mean.rate) 
     }
     else {
-        message(" -- Simulating gene means with CNVs...")
+        if (verbose) {message(" -- Simulating gene means with CNVs...")}
         
         # Use the previous base gene means as the diploid values
         diploid.base.means.gene <- baseGeneMeans  
